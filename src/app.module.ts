@@ -1,23 +1,22 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
+import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { AuthModule } from './auth/auth.module';
+import { AppLoggerService } from './common/app-logger.service';
+import { MandalModule } from './mandal/mandal.module';
+import { PrismaModule } from './prisma/prisma.module';
+import { UsersModule } from './users/users.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DB_HOST ?? 'localhost',
-      port: Number(process.env.DB_PORT ?? 5432),
-      username: process.env.DB_USERNAME ?? 'postgres',
-      password: process.env.DB_PASSWORD ?? 'postgres',
-      database: process.env.DB_NAME ?? 'vc_app',
-      migrations: ['dist/database/migrations/*.js'],
-      autoLoadEntities: true,
-      synchronize: false,
-    }),
+    ConfigModule.forRoot({ isGlobal: true }),
+    PrismaModule,
+    AuthModule,
+    UsersModule,
+    MandalModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [AppService, AppLoggerService],
 })
 export class AppModule {}
