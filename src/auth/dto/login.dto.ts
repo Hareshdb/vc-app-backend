@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString, Matches } from 'class-validator';
 
-export class SendOtpDto {
+export class LoginDto {
   @ApiPropertyOptional({ example: '+91', default: '+91' })
   @IsOptional()
   @IsString()

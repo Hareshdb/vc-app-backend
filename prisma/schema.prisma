@@ -6,12 +6,17 @@ datasource db {
   provider = "postgresql"
 }
 
-
 /****  Common Enums  ****/
 
 enum Status {
   ACTIVE
   INACTIVE
+}
+
+enum GENDER {
+  MALE
+  FEMALE
+  OTHER
 }
 
 /****  User Enums  ****/
@@ -29,7 +34,6 @@ enum UserType {
   SUPER_ADMIN
 }
 
-
 /****  Mandal Enums  ****/
 
 enum MANDAL_STRATEGY {
@@ -37,65 +41,156 @@ enum MANDAL_STRATEGY {
   COLLECTIVE
 }
 
-enum MANDAL_SIZE { 
-  SMALL
-  MEDIUM
-  LARGE
-  JUMBO
+/****  Plans and Transaction Enums  ****/
+
+enum MemberPlanStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
 }
 
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  LOAN_DISBURSEMENT
+  LOAN_REPAYMENT
+  MEMBERSHIP_FEE
+  PENALTY
+  EXPENSE
+  INCOME
+}
+
+enum PaymentMethodType {
+  CASH
+  BANK
+  UPI
+  CARD
+  CHEQUE
+}
+
+enum EntryType {
+  DEBIT
+  CREDIT
+}
+
+// ==============================
+// PLAN
+// ==============================
+
+model Plan {
+  id              Int      @id @default(autoincrement())
+  name            String   @unique
+  minUsers        Int      @map("min_users")
+  maxUsers        Int      @map("max_users")
+  pricePerPerson  Int      @map("price_per_person")
+  description     String
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  mandals MandalMaster[]
+
+  @@map("plans")
+}
+
+// ==============================
+// MANDAL MASTER
+// ==============================
 
 model MandalMaster {
-  id         Int      @id @default(autoincrement())
-  mandalId   String   @unique @map("mandal_id")
-  mandalName String   @map("mandal_name")
+  id              Int             @id @default(autoincrement())
+  code            String          @unique
+  mandalName      String          @map("mandal_name")
+  status          Status          @default(ACTIVE)
+  address         String
+  city            String
+  state           String
+  pincode         String
   mandalStrategy  MANDAL_STRATEGY @map("mandal_strategy")
-  mandalSize  MANDAL_SIZE  @map("mandal_size")
-  status     Status   @default(ACTIVE)
-  isTrialActive Boolean @map("is_trial_active") @default(true)
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
-  deletedAt  DateTime? @map("deleted_at")
+  mandalPlanId    Int             @map("mandal_plan_id")
+  mandalPlan      Plan            @relation(fields: [mandalPlanId], references: [id])
+  amount          Decimal         @db.Decimal(12, 2)
+  isTrialActive   Boolean         @default(true) @map("is_trial_active")
+  mandalStartDate DateTime        @default(now()) @map("mandal_start_date")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+  deletedAt       DateTime?       @map("deleted_at")
 
-  members MandalMember[]
+  members      MandalMember[]
+  transactions Transaction[]
 
   @@map("mandal_master")
 }
 
-model User {
-  id               Int       @id @default(autoincrement())
-  userType         UserType  @map("user_type")
-  fullName         String    @map("full_name")
-  email            String    @unique
-  countryCode      String    @default("+91") @map("country_code")
-  mobileNumber     String    @map("mobile_number")
-  isMobileVerified Boolean   @default(false) @map("is_mobile_verified")
-  birthDate        DateTime? @map("birth_date")
-  status           Status    @default(ACTIVE)
-  lastLoggedInAt   DateTime? @map("last_loggedin_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
-  deletedAt        DateTime? @map("deleted_at")
+// ==============================
+// USER
+// ==============================
 
-  memberships MandalMember[]
+model User {
+  id               Int        @id @default(autoincrement())
+  userType         UserType   @map("user_type")
+  fullName         String     @map("full_name")
+  email            String
+  countryCode      String     @default("+91") @map("country_code")
+  mobileNumber     String     @map("mobile_number") @unique
+  status           UserStatus @default(PENDING)
+  gender           GENDER
+  birthDate        DateTime?  @map("birth_date")
+  address          String
+  isMobileVerified Boolean    @default(false) @map("is_mobile_verified")
+  joinedAt         DateTime?  @map("joined_at")
+  lastLoggedInAt   DateTime?  @map("last_loggedin_at")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+  deletedAt        DateTime?  @map("deleted_at")
+
+  memberships       MandalMember[]
+  memberAccounts    MemberAccount[]
+  planSubscriptions MemberPlanSubscription[]
+  transactions      Transaction[]
+  refreshTokens     RefreshToken[]
 
   @@unique([countryCode, mobileNumber])
   @@map("users")
 }
 
+// ==============================
+// REFRESH TOKEN
+// ==============================
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
+}
+
+// ==============================
+// OTP MASTER
+// ==============================
+
 model OtpMaster {
-  id          Int      @id @default(autoincrement())
-  countryCode String   @default("+91") @map("country_code")
-  mobileNumber String  @map("mobile_number")
-  otp         String
-  expireAt    DateTime @map("expire_at")
-  isUsed      Boolean  @default(false) @map("is_used")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id           Int      @id @default(autoincrement())
+  countryCode  String   @default("+91") @map("country_code")
+  mobileNumber String   @map("mobile_number")
+  otp          String
+  expireAt     DateTime @map("expire_at")
+  isUsed       Boolean  @default(false) @map("is_used")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
   @@index([countryCode, mobileNumber, isUsed])
   @@map("otp_master")
 }
+
+// ==============================
+// MANDAL MEMBER
+// ==============================
 
 model MandalMember {
   id        Int      @id @default(autoincrement())
@@ -109,4 +204,88 @@ model MandalMember {
 
   @@unique([mandalId, userId])
   @@map("mandal_members")
+}
+
+// ==============================
+// MEMBER ACCOUNTS
+// ==============================
+
+model MemberAccount {
+  id            Int       @id @default(autoincrement())
+  userId        Int       @map("user_id")
+  user          User      @relation(fields: [userId], references: [id])
+  accountName   String    @map("account_name")
+  bankName      String?   @map("bank_name")
+  accountNumber String?   @map("account_number")
+  ifscCode      String?   @map("ifsc_code")
+  upiId         String?   @map("upi_id")
+  isDefault     Boolean   @default(false) @map("is_default")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  @@map("member_accounts")
+}
+
+// ==============================
+// PAYMENT METHODS
+// ==============================
+
+model PaymentMethod {
+  id        Int               @id @default(autoincrement())
+  name      String
+  type      PaymentMethodType
+  isActive  Boolean           @default(true) @map("is_active")
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  deletedAt DateTime?         @map("deleted_at")
+
+  subscriptions MemberPlanSubscription[]
+  transactions  Transaction[]
+
+  @@map("payment_methods")
+}
+
+// ==============================
+// MEMBER PLAN SUBSCRIPTIONS
+// ==============================
+
+model MemberPlanSubscription {
+  id              Int            @id @default(autoincrement())
+  userId          Int            @map("user_id")
+  user            User           @relation(fields: [userId], references: [id])
+  paymentMethodId Int?           @map("payment_method_id")
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  isActive        Boolean        @default(true) @map("is_active")
+  isTrialActive   Boolean        @default(false) @map("is_trial_active")
+  lastPaymentDate DateTime?      @map("last_payment_date")
+  expireAt        DateTime?      @map("expire_at")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+  deletedAt       DateTime?      @map("deleted_at")
+
+  @@map("member_plan_subscriptions")
+}
+
+// ==============================
+// TRANSACTIONS
+// ==============================
+
+model Transaction {
+  id              Int             @id @default(autoincrement())
+  userId          Int             @map("user_id")
+  user            User            @relation(fields: [userId], references: [id])
+  mandalId        Int             @map("mandal_id")
+  mandal          MandalMaster    @relation(fields: [mandalId], references: [id])
+  paymentMethodId Int?            @map("payment_method_id")
+  paymentMethod   PaymentMethod?  @relation(fields: [paymentMethodId], references: [id])
+  amount          Decimal         @db.Decimal(12, 2)
+  paymentType     TransactionType @map("payment_type")
+  entryType       EntryType       @map("entry_type")
+  remarks         String?
+  transactionDate DateTime        @map("transaction_date")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
+
+  @@map("transactions")
 }

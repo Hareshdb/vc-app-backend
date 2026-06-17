@@ -1,4 +1,4 @@
-import { UserType } from '@prisma/client';
+import { GENDER, UserType } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsDateString,
@@ -38,6 +38,17 @@ export class CreateUserDto {
     message: 'Mobile number must be a valid 10-digit Indian number',
   })
   mobileNumber: string;
+
+  @ApiPropertyOptional({ example: GENDER.OTHER, default: GENDER.OTHER })
+  @IsOptional()
+  @IsEnum(GENDER)
+  gender?: GENDER;
+
+  @ApiPropertyOptional({ example: '123 Main Street' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string;
 
   @ApiPropertyOptional({ example: '1998-08-15' })
   @IsOptional()

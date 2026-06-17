@@ -1,16 +1,18 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { MANDAL_SIZE, MANDAL_STRATEGY } from '@prisma/client';
+import { MANDAL_STRATEGY } from '@prisma/client';
 import {
   IsEmail,
   IsEnum,
+  IsInt,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
+  IsPositive,
   IsString,
   Matches,
   MaxLength,
-  MinLength,
+  Min,
 } from 'class-validator';
-import Api from 'twilio/lib/rest/Api';
 
 export class CreateMandalDto {
   @ApiProperty({ example: 'My Mandal Group' })
@@ -19,23 +21,54 @@ export class CreateMandalDto {
   @MaxLength(255)
   mandalName: string;
 
-  @ApiProperty({ example: 'VC-000000001' })
-  @IsString()
-  @IsNotEmpty()
-  @MinLength(8)
-  @MaxLength(255)
-  mandalId: string;
-
   @ApiProperty({ example: MANDAL_STRATEGY.GROWING })
   @IsEnum(MANDAL_STRATEGY)
   @IsNotEmpty()
   mandalStrategy: MANDAL_STRATEGY;
-  
-  @ApiProperty({ example: MANDAL_SIZE.SMALL })
-  @IsEnum(MANDAL_SIZE)
-  @IsNotEmpty()
-  mandalSize: MANDAL_SIZE;
 
+  @ApiProperty({ example: 1, description: 'Plan id from plans table' })
+  @IsInt()
+  @IsPositive()
+  mandalPlanId: number;
+
+  @ApiProperty({ example: 1500.0, description: 'Mandal subscription amount' })
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @IsPositive()
+  amount: number;
+
+  @ApiProperty({ example: 12, description: 'Mandal duration in months' })
+  @IsInt()
+  @Min(1)
+  duration: number;
+
+  @ApiPropertyOptional({ example: '123 Main Street' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string;
+
+  @ApiPropertyOptional({ example: 'Mumbai' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  city?: string;
+
+  @ApiPropertyOptional({ example: 'Maharashtra' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  state?: string;
+
+  @ApiPropertyOptional({ example: '400001' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{6}$/, { message: 'Pincode must be a valid 6-digit number' })
+  pincode?: string;
+
+  @ApiPropertyOptional({ example: '2026-06-17' })
+  @IsOptional()
+  @IsString()
+  mandalStartDate?: string;
 
   @ApiProperty({ example: 'Admin Name' })
   @IsString()

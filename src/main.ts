@@ -23,6 +23,7 @@ async function bootstrap() {
     .setTitle('VC App Backend APIs')
     .setDescription('API documentation for Mandal, Users and Auth modules')
     .setVersion('1.0')
+    .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('api/v1', app, document);

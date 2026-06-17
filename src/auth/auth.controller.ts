@@ -1,6 +1,8 @@
 import { Body, Controller, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import { LoginDto } from './dto/login.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { SendOtpDto } from './dto/send-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 
@@ -19,5 +21,17 @@ export class AuthController {
   @ApiOperation({ summary: 'Verify OTP for mobile number' })
   verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.authService.verifyOtp(dto);
+  }
+
+  @Post('login')
+  @ApiOperation({ summary: 'Login with verified mobile number' })
+  login(@Body() dto: LoginDto) {
+    return this.authService.login(dto);
+  }
+
+  @Post('refresh-token')
+  @ApiOperation({ summary: 'Issue a new access token using a refresh token' })
+  refreshToken(@Body() dto: RefreshTokenDto) {
+    return this.authService.refreshAccessToken(dto);
   }
 }
