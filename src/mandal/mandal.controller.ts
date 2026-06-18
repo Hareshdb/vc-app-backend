@@ -5,6 +5,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
@@ -12,6 +13,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CreateMandalDto } from './dto/create-mandal.dto';
 import { MandalService } from './mandal.service';
 import { AddMemberToMandalDto } from './dto/add-member-to-mandal.dto';
+import { ListMandalMembersQueryDto } from './dto/list-mandal-members-query.dto';
 
 @ApiTags('mandals')
 @Controller('mandals')
@@ -41,7 +43,10 @@ export class MandalController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List members of a mandal' })
-  listMandalMembers(@Param('mandalId', ParseIntPipe) mandalId: number) {
-    return this.mandalService.listMandalMembers(mandalId);
+  listMandalMembers(
+    @Param('mandalId', ParseIntPipe) mandalId: number,
+    @Query() query: ListMandalMembersQueryDto,
+  ) {
+    return this.mandalService.listMandalMembers(mandalId, query);
   }
 }

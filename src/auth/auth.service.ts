@@ -77,6 +77,17 @@ export class AuthService {
       process.env.ENVIRONMENT === 'production' ? this.generateOtp() : '000000';
     const expireAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60 * 1000);
 
+    if (dto.checkIsExistingUser) {
+      const user = await this.prisma.user.findFirst({
+        where: { countryCode, mobileNumber: dto.mobileNumber.trim() },
+      });
+      if (!user) {
+        throw new BadRequestException(
+          'Account not exists with this mobile number',
+        );
+      }
+    }
+
     await this.prisma.otpMaster.create({
       data: {
         countryCode,
@@ -148,7 +159,7 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new NotFoundException('No account found for this mobile number');
+      throw new NotFoundException('Account not exists with this mobile number');
     }
 
     if (!user.isMobileVerified) {
@@ -277,7 +288,10 @@ export class AuthService {
       }),
     ]);
 
-    this.logger.log(`Access token refreshed for user id=${user.id}`, AuthService.name);
+    this.logger.log(
+      `Access token refreshed for user id=${user.id}`,
+      AuthService.name,
+    );
 
     return {
       accessToken,

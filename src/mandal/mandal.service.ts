@@ -11,11 +11,18 @@ import { randomBytes } from 'crypto';
 
 import { AppLoggerService } from '../common/app-logger.service';
 
+import {
+  buildPaginationMeta,
+  resolvePaginationParams,
+} from '../common/utils/pagination.util';
+
 import { PrismaService } from '../prisma/prisma.service';
 
 import { AddMemberToMandalDto } from './dto/add-member-to-mandal.dto';
 
 import { CreateMandalDto } from './dto/create-mandal.dto';
+
+import { ListMandalMembersQueryDto } from './dto/list-mandal-members-query.dto';
 
 const DEFAULT_COUNTRY_CODE = '+91';
 
@@ -259,66 +266,12 @@ export class MandalService {
   async addMemberToMandal(mandalId: number, dto: AddMemberToMandalDto) {
     const mandal = await this.findMandalByIdOrCode(mandalId);
 
-    let userId = dto.userId;
-
-    if (!userId) {
-      if (!dto.fullName || !dto.email || !dto.mobileNumber) {
-        throw new BadRequestException(
-          'Provide userId or member details (fullName, email, mobileNumber)',
-        );
-      }
-
-      const countryCode = this.normalizeCountryCode(dto.countryCode);
-
-      const mobileNumber = dto.mobileNumber.trim();
-
-      const existingUser = await this.prisma.user.findFirst({
-        where: { countryCode, mobileNumber, deletedAt: null },
-      });
-
-      if (existingUser) {
-        userId = existingUser.id;
-      } else {
-        const createdUser = await this.prisma.user.create({
-          data: {
-            userType: dto.userType ?? UserType.MEMBER,
-
-            fullName: dto.fullName.trim(),
-
-            email: dto.email.trim().toLowerCase(),
-
-            countryCode,
-
-            mobileNumber,
-
-            gender: dto.gender ?? GENDER.MALE,
-
-            address: dto.address?.trim() ?? 'Not provided',
-
-            birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
-
-            status: UserStatus.PENDING,
-          },
-        });
-
-        userId = createdUser.id;
-      }
-    }
-
-    const user = await this.prisma.user.findFirst({
-      where: { id: userId, deletedAt: null },
-    });
-
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
+    const userId = dto.userId;
     const existingMembership = await this.prisma.mandalMember.findUnique({
       where: {
         mandalId_userId: {
           mandalId: mandal.id,
-
-          userId: user.id,
+          userId: userId,
         },
       },
     });
@@ -330,8 +283,7 @@ export class MandalService {
     const member = await this.prisma.mandalMember.create({
       data: {
         mandalId: mandal.id,
-
-        userId: user.id,
+        userId: userId,
       },
 
       include: {
@@ -340,8 +292,7 @@ export class MandalService {
     });
 
     this.logger.log(
-      `Member added mandalId=${mandal.id} userId=${user.id}`,
-
+      `Member added mandalId=${mandal.id} userId=${userId}`,
       MandalService.name,
     );
 
@@ -350,45 +301,59 @@ export class MandalService {
 
       member: {
         id: member.id,
-
         mandalId: mandal.id,
-
         user: this.formatMemberUser(member.user),
-
         createdAt: member.createdAt,
       },
     };
   }
 
-  async listMandalMembers(mandalId: number) {
+  async listMandalMembers(mandalId: number, query: ListMandalMembersQueryDto) {
     const mandal = await this.findMandalByIdOrCode(mandalId);
+    const { page, limit, skip, take } = resolvePaginationParams(
+      query.page,
+      query.limit,
+    );
 
-    const members = await this.prisma.mandalMember.findMany({
-      where: {
-        mandalId: mandal.id,
+    const keyword = query.keyword?.trim();
+    const userWhere = keyword
+      ? {
+          deletedAt: null,
+          OR: [
+            { fullName: { contains: keyword, mode: 'insensitive' as const } },
+            { email: { contains: keyword, mode: 'insensitive' as const } },
+            {
+              mobileNumber: { contains: keyword, mode: 'insensitive' as const },
+            },
+          ],
+        }
+      : { deletedAt: null };
 
-        user: { deletedAt: null },
-      },
+    const where = {
+      mandalId: mandal.id,
+      user: userWhere,
+    };
 
-      include: { user: true },
-
-      orderBy: { createdAt: 'asc' },
-    });
+    const [members, total] = await Promise.all([
+      this.prisma.mandalMember.findMany({
+        where,
+        include: { user: true },
+        orderBy: { createdAt: 'asc' },
+        skip,
+        take,
+      }),
+      this.prisma.mandalMember.count({ where }),
+    ]);
 
     return {
       mandal: this.formatMandalResponse(mandal),
-
       members: members.map((member) => ({
         id: member.id,
-
         mandalId: member.mandalId,
-
         user: this.formatMemberUser(member.user),
-
         createdAt: member.createdAt,
       })),
-
-      total: members.length,
+      ...buildPaginationMeta(total, page, limit),
     };
   }
 }
