@@ -167,7 +167,7 @@ export class AuthService {
     }
 
     const membership = await this.prisma.mandalMember.findFirst({
-      where: { userId: user.id },
+      where: { userId: user.id, deletedAt: null },
       include: {
         mandal: {
           include: { mandalPlan: true },
@@ -175,6 +175,9 @@ export class AuthService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // Derive userType from the membership role in mandal_members
+    const userType = membership?.role ?? 'MEMBER';
 
     const accessToken = this.createAccessToken(user.id);
     const refreshToken = this.createRefreshToken(user.id);
@@ -207,13 +210,14 @@ export class AuthService {
       refreshTokenExpiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d`,
       user: {
         id: user.id,
-        userType: user.userType,
+        userType,
         fullName: user.fullName,
         email: user.email,
         countryCode: user.countryCode,
         mobileNumber: user.mobileNumber,
         isMobileVerified: user.isMobileVerified,
         status: user.status,
+        profilePicture: user.profilePicture,
       },
       mandal: mandal ?? null,
       // ? {

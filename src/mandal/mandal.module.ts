@@ -8,5 +8,6 @@ import { AppLoggerService } from '../common/app-logger.service';
   imports: [AuthModule],
   controllers: [MandalController],
   providers: [MandalService, AppLoggerService],
+  exports: [MandalService],
 })
 export class MandalModule {}

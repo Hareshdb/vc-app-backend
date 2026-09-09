@@ -21,7 +21,9 @@ async function bootstrap() {
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('VC App Backend APIs')
-    .setDescription('API documentation for Mandal, Users and Auth modules')
+    .setDescription(
+      'API documentation for Mandal, Users, Auth, and Admin modules',
+    )
     .setVersion('1.0')
     .addBearerAuth()
     .build();
@@ -30,6 +32,11 @@ async function bootstrap() {
 
   const prisma = app.get(PrismaService);
   await prisma.$connect();
+
+  app.enableCors({
+    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    credentials: true,
+  });
 
   await app.listen(process.env.PORT ?? 3000);
 }

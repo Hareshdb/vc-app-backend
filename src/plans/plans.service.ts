@@ -7,17 +7,21 @@ export class PlansService {
 
   async listPlans() {
     const plans = await this.prisma.plan.findMany({
-      orderBy: { minUsers: 'asc' },
+      orderBy: { membersCapacity: 'asc' },
       select: {
         id: true,
         name: true,
-        minUsers: true,
-        maxUsers: true,
-        pricePerPerson: true,
+        membersCapacity: true,
+        planAmount: true,
         description: true,
       },
     });
 
-    return { plans };
+    return {
+      plans: plans.map((plan) => ({
+        ...plan,
+        planAmount: Number(plan.planAmount),
+      })),
+    };
   }
 }

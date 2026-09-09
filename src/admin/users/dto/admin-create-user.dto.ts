@@ -1,4 +1,4 @@
-import { GENDER } from '@prisma/client';
+import { GENDER, UserStatus } from '@prisma/client';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsDateString,
@@ -11,7 +11,7 @@ import {
   MaxLength,
 } from 'class-validator';
 
-export class CreateUserDto {
+export class AdminCreateUserDto {
   @ApiProperty({ example: 'John Doe' })
   @IsString()
   @IsNotEmpty()
@@ -20,7 +20,6 @@ export class CreateUserDto {
 
   @ApiProperty({ example: 'john@example.com' })
   @IsEmail()
-  @IsOptional()
   email: string;
 
   @ApiPropertyOptional({ example: '+91', default: '+91' })
@@ -51,4 +50,14 @@ export class CreateUserDto {
   @IsOptional()
   @IsDateString()
   birthDate?: string;
+
+  @ApiPropertyOptional({ enum: UserStatus, default: UserStatus.ACTIVE })
+  @IsOptional()
+  @IsEnum(UserStatus)
+  status?: UserStatus;
+
+  @ApiPropertyOptional({ example: 'MEMBER' })
+  @IsOptional()
+  @IsString()
+  userType?: string;
 }

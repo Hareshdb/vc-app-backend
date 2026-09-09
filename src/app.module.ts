@@ -1,12 +1,16 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { AdminModule } from './admin/admin.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { AppLoggerService } from './common/app-logger.service';
+import { ContributionsModule } from './contributions/contributions.module';
 import { MandalModule } from './mandal/mandal.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { PlansModule } from './plans/plans.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { SubscriptionsModule } from './subscriptions/subscriptions.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -14,9 +18,13 @@ import { UsersModule } from './users/users.module';
     ConfigModule.forRoot({ isGlobal: true }),
     PrismaModule,
     AuthModule,
+    AdminModule,
     UsersModule,
     MandalModule,
     PlansModule,
+    SubscriptionsModule,
+    ContributionsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService, AppLoggerService],

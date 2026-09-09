@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseIntPipe,
+  Patch,
   Post,
   Query,
   UseGuards,
@@ -14,6 +16,8 @@ import { CreateMandalDto } from './dto/create-mandal.dto';
 import { MandalService } from './mandal.service';
 import { AddMemberToMandalDto } from './dto/add-member-to-mandal.dto';
 import { ListMandalMembersQueryDto } from './dto/list-mandal-members-query.dto';
+import { UpdateMandalProfileDto } from './dto/update-mandal-profile.dto';
+import { SaveDrawWinnerDto } from './dto/save-draw-winner.dto';
 
 @ApiTags('mandals')
 @Controller('mandals')
@@ -49,4 +53,62 @@ export class MandalController {
   ) {
     return this.mandalService.listMandalMembers(mandalId, query);
   }
+
+  @Delete(':mandalId/members/:memberId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Remove a member from mandal (soft delete)' })
+  removeMemberFromMandal(
+    @Param('mandalId', ParseIntPipe) mandalId: number,
+    @Param('memberId', ParseIntPipe) memberId: number,
+  ) {
+    return this.mandalService.removeMemberFromMandal(mandalId, memberId);
+  }
+
+  @Patch(':mandalId/profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update mandal profile (name, address, city, state, pincode)' })
+  updateMandalProfile(
+    @Param('mandalId', ParseIntPipe) mandalId: number,
+    @Body() dto: UpdateMandalProfileDto,
+  ) {
+    return this.mandalService.updateMandalProfile(mandalId, dto);
+  }
+
+  @Get(':mandalId/dashboard-stats')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get dashboard financial stats and member metrics for mandal' })
+  getDashboardStats(@Param('mandalId', ParseIntPipe) mandalId: number) {
+    return this.mandalService.getDashboardStats(mandalId);
+  }
+
+  @Get(':mandalId/draw-eligible-members')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get list of members eligible for draw (excluding previous winners)' })
+  getDrawEligibleMembers(@Param('mandalId', ParseIntPipe) mandalId: number) {
+    return this.mandalService.getDrawEligibleMembers(mandalId);
+  }
+
+  @Get(':mandalId/draw-winners')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get list of previous draw winners' })
+  getDrawWinners(@Param('mandalId', ParseIntPipe) mandalId: number) {
+    return this.mandalService.getDrawWinners(mandalId);
+  }
+
+  @Post(':mandalId/draw-winners')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Save draw winner' })
+  saveDrawWinner(
+    @Param('mandalId', ParseIntPipe) mandalId: number,
+    @Body() dto: SaveDrawWinnerDto,
+  ) {
+    return this.mandalService.saveDrawWinner(mandalId, dto);
+  }
 }
+
