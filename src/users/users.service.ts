@@ -14,7 +14,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     private readonly logger: AppLoggerService,
     private readonly storageService: R2StorageService,
-  ) {}
+  ) { }
 
   private normalizeCountryCode(countryCode?: string): string {
     const clean = (countryCode ?? DEFAULT_COUNTRY_CODE).trim();
@@ -41,7 +41,7 @@ export class UsersService {
         countryCode,
         mobileNumber,
         gender: dto.gender ?? GENDER.OTHER,
-        address: dto.address?.trim() ?? 'Not provided',
+        address: dto.address?.trim() ?? '',
         birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
         status: UserStatus.ACTIVE,
       },

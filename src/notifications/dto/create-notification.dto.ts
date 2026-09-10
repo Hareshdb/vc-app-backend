@@ -36,6 +36,14 @@ export class CreateNotificationDto {
   type: NotificationType;
 
   @ApiPropertyOptional({
+    example: 'LOAN',
+    description: 'Module associated with notification (e.g. MANDAL, LOAN, CONTRIBUTION)',
+  })
+  @IsOptional()
+  @IsString()
+  module?: string;
+
+  @ApiPropertyOptional({
     example: 42,
     description: 'ID of the referenced entity (e.g., contribution ID)',
   })

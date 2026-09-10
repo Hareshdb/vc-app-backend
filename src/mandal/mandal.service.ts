@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { BillingCycle, MemberRole, SubscriptionStatus, UserStatus } from '@prisma/client';
+import { BillingCycle, ContributionType, LoanStatus, MemberRole, NotificationType, SubscriptionStatus, UserStatus } from '@prisma/client';
 
 import { randomBytes } from 'crypto';
 
@@ -15,6 +15,10 @@ import {
   buildPaginationMeta,
   resolvePaginationParams,
 } from '../common/utils/pagination.util';
+import {
+  formatNextCycleText,
+  getContributionCycleDates,
+} from '../common/utils/cycle-date.util';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -36,7 +40,7 @@ export class MandalService {
     private readonly prisma: PrismaService,
 
     private readonly logger: AppLoggerService,
-  ) {}
+  ) { }
 
   private normalizeCountryCode(countryCode?: string): string {
     const clean = (countryCode ?? DEFAULT_COUNTRY_CODE).trim();
@@ -193,11 +197,11 @@ export class MandalService {
 
           amount: dto.amount,
 
-          address: dto.address?.trim() ?? 'Not provided',
+          address: dto.address?.trim() ?? '',
 
-          city: dto.city?.trim() ?? 'Not provided',
+          city: dto.city?.trim() ?? '',
 
-          state: dto.state?.trim() ?? 'Not provided',
+          state: dto.state?.trim() ?? '',
 
           pincode: dto.pincode?.trim() ?? '000000',
 
@@ -256,6 +260,17 @@ export class MandalService {
       }
 
       return { mandal, memberMap, subscription };
+    });
+
+    await this.prisma.notification.create({
+      data: {
+        userId: existingUser.id,
+        mandalId: created.mandal.id,
+        title: 'Welcome to Unity Fund!',
+        message: `Welcome to Unity Fund! Your mandal "${created.mandal.mandalName}" has been successfully registered.`,
+        type: NotificationType.INFO,
+        module: 'MANDAL',
+      },
     });
 
     this.logger.log(
@@ -353,6 +368,17 @@ export class MandalService {
       MandalService.name,
     );
 
+    await this.prisma.notification.create({
+      data: {
+        userId: userId,
+        mandalId: mandal.id,
+        title: `Welcome to ${mandal.mandalName}`,
+        message: `You have been added to ${mandal.mandalName} by the mandal admin.`,
+        type: NotificationType.INFO,
+        module: 'MANDAL',
+      },
+    });
+
     return {
       message: 'Member added to mandal successfully',
 
@@ -405,15 +431,15 @@ export class MandalService {
     const keyword = query.keyword?.trim();
     const userWhere = keyword
       ? {
-          deletedAt: null,
-          OR: [
-            { fullName: { contains: keyword, mode: 'insensitive' as const } },
-            { email: { contains: keyword, mode: 'insensitive' as const } },
-            {
-              mobileNumber: { contains: keyword, mode: 'insensitive' as const },
-            },
-          ],
-        }
+        deletedAt: null,
+        OR: [
+          { fullName: { contains: keyword, mode: 'insensitive' as const } },
+          { email: { contains: keyword, mode: 'insensitive' as const } },
+          {
+            mobileNumber: { contains: keyword, mode: 'insensitive' as const },
+          },
+        ],
+      }
       : { deletedAt: null };
 
     const where = {
@@ -487,23 +513,17 @@ export class MandalService {
   async getDashboardStats(mandalId: number) {
     const mandal = await this.findMandalByIdOrCode(mandalId);
 
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(
-      now.getFullYear(),
-      now.getMonth() + 1,
-      0,
-      23,
-      59,
-      59,
-      999,
-    );
+    const { cycleStartDate, cycleEndDate, nextCycleStartDate } =
+      getContributionCycleDates(mandal.mandalStartDate);
 
     const [
       totalSavingsAggregate,
       monthSavingsAggregate,
-      activeMembersCount,
+      activeMembers,
       recentContributions,
+      paidContributionsInCycle,
+      loansInCirculationAggregate,
+      activeLoansInMandal,
     ] = await Promise.all([
       this.prisma.contribution.aggregate({
         _sum: { amount: true },
@@ -515,13 +535,18 @@ export class MandalService {
           mandalId: mandal.id,
           deletedAt: null,
           contributionDate: {
-            gte: startOfMonth,
-            lte: endOfMonth,
+            gte: cycleStartDate,
+            lte: cycleEndDate,
           },
         },
       }),
-      this.prisma.mandalMember.count({
-        where: { mandalId: mandal.id, deletedAt: null },
+      this.prisma.mandalMember.findMany({
+        where: {
+          mandalId: mandal.id,
+          deletedAt: null,
+          user: { status: UserStatus.ACTIVE, deletedAt: null },
+        },
+        include: { user: true },
       }),
       this.prisma.contribution.findMany({
         where: { mandalId: mandal.id, deletedAt: null },
@@ -533,15 +558,82 @@ export class MandalService {
         orderBy: { contributionDate: 'desc' },
         take: 5,
       }),
+      this.prisma.contribution.findMany({
+        where: {
+          mandalId: mandal.id,
+          deletedAt: null,
+          type: ContributionType.MONTHLY_FEE,
+          contributionDate: {
+            gte: cycleStartDate,
+            lte: cycleEndDate,
+          },
+        },
+        select: { memberId: true },
+      }),
+      this.prisma.loan.aggregate({
+        _sum: { outstandingAmount: true },
+        where: {
+          mandalId: mandal.id,
+          status: LoanStatus.DISBURSED,
+          outstandingAmount: { gt: 0 },
+        },
+      }),
+      this.prisma.loan.findMany({
+        where: {
+          mandalId: mandal.id,
+          status: LoanStatus.DISBURSED,
+          outstandingAmount: { gt: 0 },
+        },
+        select: {
+          memberId: true,
+          outstandingAmount: true,
+        },
+      }),
     ]);
 
     const totalGroupSavings = Number(totalSavingsAggregate._sum.amount ?? 0);
     const collectedThisMonth = Number(monthSavingsAggregate._sum.amount ?? 0);
+    const loansInCirculation = Number(loansInCirculationAggregate?._sum?.outstandingAmount ?? 0);
+    const activeMembersCount = activeMembers.length;
+
+    const interestPercent = Number(mandal.mandalInterestPercent ?? 2);
+    const memberInterestMap = new Map<number, number>();
+    for (const loan of activeLoansInMandal) {
+      const outstanding = Number(loan.outstandingAmount ?? 0);
+      const interest = (outstanding * interestPercent) / 100;
+      const prevInterest = memberInterestMap.get(loan.memberId) ?? 0;
+      memberInterestMap.set(loan.memberId, prevInterest + interest);
+    }
+
+    const paidMemberIds = new Set(paidContributionsInCycle.map((c) => c.memberId));
+    const mandalMonthlyAmount = Number(mandal.amount ?? 0);
+
+    const pendingDues = activeMembers
+      .filter((m) => !paidMemberIds.has(m.id))
+      .map((m) => {
+        const rawInterest = memberInterestMap.get(m.id) ?? 0;
+        const interestAmount = Math.round(rawInterest * 100) / 100;
+        const totalAmount = Math.round((mandalMonthlyAmount + interestAmount) * 100) / 100;
+        return {
+          id: m.id,
+          userId: m.userId,
+          memberName: m.user.fullName,
+          profilePicture: m.user.profilePicture,
+          amount: totalAmount,
+          monthlyFee: mandalMonthlyAmount,
+          interestAmount,
+        };
+      });
+
+    const nextCycleText = formatNextCycleText(nextCycleStartDate);
 
     return {
       totalGroupSavings,
       collectedThisMonth,
+      loansInCirculation,
       activeMembersCount,
+      nextCycleText,
+      pendingDues,
       recentContributions: recentContributions.map((c) => ({
         id: c.id,
         memberId: c.memberId,
@@ -549,6 +641,7 @@ export class MandalService {
         memberAvatar: c.member.user.profilePicture,
         amount: Number(c.amount),
         type: c.type,
+        entryType: c.entryType,
         paymentMethod: c.paymentMethod,
         contributionDate: c.contributionDate,
         createdAt: c.createdAt,
