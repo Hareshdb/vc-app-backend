@@ -1,10 +1,11 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { ContributionType } from '@prisma/client';
+import { ContributionType, EntryType, NotificationType } from '@prisma/client';
 import { AppLoggerService } from '../common/app-logger.service';
 import {
   buildPaginationMeta,
   resolvePaginationParams,
 } from '../common/utils/pagination.util';
+import { getContributionCycleDates } from '../common/utils/cycle-date.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateContributionDto } from './dto/create-contribution.dto';
 import { UpdateContributionDto } from './dto/update-contribution.dto';
@@ -33,7 +34,7 @@ export class ContributionsService {
   }
 
   async create(mandalId: number, dto: CreateContributionDto) {
-    await this.validateMandal(mandalId);
+    const mandal = await this.validateMandal(mandalId);
     await this.validateMember(dto.memberId, mandalId);
 
     const createdBy = dto.createdBy;
@@ -43,15 +44,9 @@ export class ContributionsService {
 
     if (dto.type === ContributionType.MONTHLY_FEE) {
       const targetDate = new Date(dto.contributionDate);
-      const startOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
-      const endOfMonth = new Date(
-        targetDate.getFullYear(),
-        targetDate.getMonth() + 1,
-        0,
-        23,
-        59,
-        59,
-        999,
+      const { cycleStartDate, cycleEndDate } = getContributionCycleDates(
+        mandal.mandalStartDate,
+        targetDate,
       );
 
       const existingMonthlyContribution = await this.prisma.contribution.findFirst({
@@ -61,8 +56,8 @@ export class ContributionsService {
           type: ContributionType.MONTHLY_FEE,
           deletedAt: null,
           contributionDate: {
-            gte: startOfMonth,
-            lte: endOfMonth,
+            gte: cycleStartDate,
+            lte: cycleEndDate,
           },
         },
         include: {
@@ -77,12 +72,8 @@ export class ContributionsService {
       if (existingMonthlyContribution) {
         const memberName =
           existingMonthlyContribution.member?.user?.fullName || 'Selected member';
-        const monthName = targetDate.toLocaleString('en-IN', {
-          month: 'long',
-          year: 'numeric',
-        });
         throw new BadRequestException(
-          `Mandal EMI contribution already recorded for ${memberName} for ${monthName}.`,
+          `Mandal EMI contribution already recorded for ${memberName} for current contribution cycle.`,
         );
       }
     }
@@ -93,7 +84,11 @@ export class ContributionsService {
         memberId: dto.memberId,
         amount: dto.amount,
         type: dto.type,
-        ...(dto.entryType && { entryType: dto.entryType }),
+        entryType:
+          dto.entryType ??
+          (dto.type === ContributionType.WITHDRAWAL
+            ? EntryType.DEBIT
+            : EntryType.CREDIT),
         paymentMethod: dto.paymentMethod,
         reference: dto.reference,
         note: dto.note,
@@ -103,6 +98,70 @@ export class ContributionsService {
       include: {
         member: { include: { user: true } },
         mandal: true,
+      },
+    });
+
+    if (dto.type === ContributionType.LOAN_REPAYMENT) {
+      const activeLoans = await this.prisma.loan.findMany({
+        where: {
+          mandalId,
+          memberId: dto.memberId,
+          status: 'DISBURSED',
+          outstandingAmount: { gt: 0 },
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+
+      let remainingRepayment = Number(dto.amount);
+
+      for (const loan of activeLoans) {
+        if (remainingRepayment <= 0) break;
+        const currentOutstanding = Number(loan.outstandingAmount);
+        const repayAmount = Math.min(remainingRepayment, currentOutstanding);
+        const newOutstanding = currentOutstanding - repayAmount;
+
+        let closedAt = loan.closedAt;
+        if (newOutstanding <= 0) {
+          closedAt = new Date();
+        }
+
+        await this.prisma.loan.update({
+          where: { id: loan.id },
+          data: {
+            outstandingAmount: newOutstanding,
+            closedAt,
+          },
+        });
+
+        await this.prisma.loanRepayment.create({
+          data: {
+            loanId: loan.id,
+            memberId: dto.memberId,
+            mandalId,
+            amount: repayAmount,
+            paymentMethod: dto.paymentMethod,
+            paymentDate: new Date(dto.contributionDate),
+            status: 'COMPLETED',
+            remarks: dto.note || 'Repayment via Contribution',
+            createdBy,
+          },
+        });
+
+        remainingRepayment -= repayAmount;
+      }
+    }
+
+    const formattedAmount = `₹${Number(dto.amount).toLocaleString('en-IN')}`;
+    const typeTitle = dto.type.replace('_', ' ');
+    await this.prisma.notification.create({
+      data: {
+        userId: contribution.member.userId,
+        mandalId: mandalId,
+        title: 'Contribution Recorded',
+        message: `A contribution of ${formattedAmount} (${typeTitle}) has been recorded for you in ${contribution.mandal.mandalName}.`,
+        type: NotificationType.PAYMENT,
+        module: 'CONTRIBUTION',
+        referenceId: contribution.id,
       },
     });
 
@@ -159,7 +218,7 @@ export class ContributionsService {
   }
 
   async update(mandalId: number, id: number, dto: UpdateContributionDto) {
-    await this.validateMandal(mandalId);
+    const mandal = await this.validateMandal(mandalId);
 
     const existing = await this.prisma.contribution.findFirst({
       where: { id, mandalId, deletedAt: null },
@@ -171,15 +230,9 @@ export class ContributionsService {
       const targetDate = dto.contributionDate
         ? new Date(dto.contributionDate)
         : existing.contributionDate;
-      const startOfMonth = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1);
-      const endOfMonth = new Date(
-        targetDate.getFullYear(),
-        targetDate.getMonth() + 1,
-        0,
-        23,
-        59,
-        59,
-        999,
+      const { cycleStartDate, cycleEndDate } = getContributionCycleDates(
+        mandal.mandalStartDate,
+        targetDate,
       );
 
       const duplicate = await this.prisma.contribution.findFirst({
@@ -190,8 +243,8 @@ export class ContributionsService {
           type: ContributionType.MONTHLY_FEE,
           deletedAt: null,
           contributionDate: {
-            gte: startOfMonth,
-            lte: endOfMonth,
+            gte: cycleStartDate,
+            lte: cycleEndDate,
           },
         },
         include: {
@@ -205,12 +258,8 @@ export class ContributionsService {
 
       if (duplicate) {
         const memberName = duplicate.member?.user?.fullName || 'Selected member';
-        const monthName = targetDate.toLocaleString('en-IN', {
-          month: 'long',
-          year: 'numeric',
-        });
         throw new BadRequestException(
-          `Mandal EMI contribution already recorded for ${memberName} for ${monthName}.`,
+          `Mandal EMI contribution already recorded for ${memberName} for current contribution cycle.`,
         );
       }
     }

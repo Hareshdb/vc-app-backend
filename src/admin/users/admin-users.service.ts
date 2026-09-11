@@ -41,7 +41,7 @@ export class AdminUsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly logger: AppLoggerService,
-  ) {}
+  ) { }
 
   private normalizeCountryCode(countryCode?: string): string {
     const clean = (countryCode ?? DEFAULT_COUNTRY_CODE).trim();
@@ -70,12 +70,12 @@ export class AdminUsersService {
       ...(query.status ? { status: query.status } : {}),
       ...(keyword
         ? {
-            OR: [
-              { fullName: { contains: keyword, mode: 'insensitive' } },
-              { email: { contains: keyword, mode: 'insensitive' } },
-              { mobileNumber: { contains: keyword, mode: 'insensitive' } },
-            ],
-          }
+          OR: [
+            { fullName: { contains: keyword, mode: 'insensitive' } },
+            { email: { contains: keyword, mode: 'insensitive' } },
+            { mobileNumber: { contains: keyword, mode: 'insensitive' } },
+          ],
+        }
         : {}),
     };
 
@@ -129,7 +129,7 @@ export class AdminUsersService {
         countryCode,
         mobileNumber,
         gender: dto.gender ?? 'OTHER',
-        address: dto.address?.trim() ?? 'Not provided',
+        address: dto.address?.trim() ?? '',
         birthDate: dto.birthDate ? new Date(dto.birthDate) : null,
         status: dto.status ?? UserStatus.ACTIVE,
       },

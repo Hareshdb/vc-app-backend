@@ -48,8 +48,6 @@ enum LoanStatus {
   APPROVED
   REJECTED
   DISBURSED
-  PARTIALLY_REPAID
-  REPAID
   CANCELLED
 }
 
@@ -102,6 +100,7 @@ enum ContributionType {
   PENALTY
   LOAN
   LOAN_REPAYMENT
+  INTEREST
   WITHDRAWAL
   ADJUSTMENT
   OTHER
@@ -388,6 +387,7 @@ model Notification {
   title       String
   message     String
   type        NotificationType
+  module      String?
   referenceId Int?             @map("reference_id")
   isRead      Boolean          @default(false) @map("is_read")
   createdAt   DateTime         @default(now()) @map("created_at")
@@ -456,22 +456,26 @@ model DrawWinner {
 // ==============================
 
 model Loan {
-  id              BigInt     @id @default(autoincrement())
-  mandalId        Int        @map("mandal_id")
-  memberId        Int        @map("member_id")
-  requestedAmount Decimal    @map("requested_amount") @db.Decimal(12, 2)
-  approvedAmount  Decimal?   @map("approved_amount") @db.Decimal(12, 2)
-  disbursedAmount Decimal?   @map("disbursed_amount") @db.Decimal(12, 2)
-  loanPurpose     String?    @map("loan_purpose")
-  description     String?    @db.Text
-  status          LoanStatus @default(PENDING)
-  rejectionReason String?    @map("rejection_reason") @db.Text
+  id                BigInt     @id @default(autoincrement())
+  loanNumber        String?    @map("loan_number")
+  mandalId          Int        @map("mandal_id")
+  memberId          Int        @map("member_id")
+  requestedAmount   Decimal    @map("requested_amount") @db.Decimal(12, 2)
+  approvedAmount    Decimal?   @map("approved_amount") @db.Decimal(12, 2)
+  disbursedAmount   Decimal?   @map("disbursed_amount") @db.Decimal(12, 2)
+  principalAmount   Decimal    @default(0) @map("principal_amount") @db.Decimal(12, 2)
+  outstandingAmount Decimal    @default(0) @map("outstanding_amount") @db.Decimal(12, 2)
+  loanPurpose       String?    @map("loan_purpose")
+  description       String?    @db.Text
+  status            LoanStatus @default(PENDING)
+  rejectionReason   String?    @map("rejection_reason") @db.Text
 
   requestedAt DateTime  @default(now()) @map("requested_at")
   reviewedAt  DateTime? @map("reviewed_at")
   approvedAt  DateTime? @map("approved_at")
   rejectedAt  DateTime? @map("rejected_at")
   disbursedAt DateTime? @map("disbursed_at")
+  closedAt    DateTime? @map("closed_at")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

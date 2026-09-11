@@ -36,6 +36,7 @@ export class NotificationsService {
         title: dto.title,
         message: dto.message,
         type: dto.type,
+        module: dto.module ?? null,
         referenceId: dto.referenceId ?? null,
       },
     });

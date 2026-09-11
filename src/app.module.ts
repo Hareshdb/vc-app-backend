@@ -7,6 +7,7 @@ import { AuthModule } from './auth/auth.module';
 import { AppLoggerService } from './common/app-logger.service';
 import { ContributionsModule } from './contributions/contributions.module';
 import { MandalModule } from './mandal/mandal.module';
+import { LoansModule } from './loans/loans.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { PlansModule } from './plans/plans.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -25,6 +26,7 @@ import { UsersModule } from './users/users.module';
     SubscriptionsModule,
     ContributionsModule,
     NotificationsModule,
+    LoansModule,
   ],
   controllers: [AppController],
   providers: [AppService, AppLoggerService],
