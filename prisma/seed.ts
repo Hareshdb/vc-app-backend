@@ -13,27 +13,33 @@ const prisma = new PrismaClient({ adapter });
 
 const plans = [
   {
+    name: 'Starter',
+    membersCapacity: 5,
+    planAmount: 0,
+    description: 'Free Forever',
+  },
+  {
     name: 'Small',
     membersCapacity: 25,
-    planAmount: 1500,
+    planAmount: 599,
     description: 'Best for intimate groups with up to 25 members',
   },
   {
     name: 'Medium',
     membersCapacity: 50,
-    planAmount: 2400,
+    planAmount: 899,
     description: 'Ideal for growing communities with up to 50 members',
   },
   {
     name: 'Large',
     membersCapacity: 100,
-    planAmount: 3600,
+    planAmount: 1199,
     description: 'Perfect for established mandals with up to 100 members',
   },
   {
     name: 'Jumbo',
     membersCapacity: 999,
-    planAmount: 6000,
+    planAmount: 5999,
     description: 'Built for large communities with 100+ members',
   },
 ];
@@ -42,16 +48,26 @@ async function main() {
   console.log('Seeding plans...');
 
   for (const plan of plans) {
-    await prisma.plan.upsert({
+    const existingPlan = await prisma.plan.findFirst({
       where: { name: plan.name },
-      update: {
-        membersCapacity: plan.membersCapacity,
-        planAmount: plan.planAmount,
-        description: plan.description,
-      },
-      create: plan,
     });
-    console.log(`  Upserted plan: ${plan.name}`);
+
+    if (existingPlan) {
+      await prisma.plan.update({
+        where: { id: existingPlan.id },
+        data: {
+          membersCapacity: plan.membersCapacity,
+          planAmount: plan.planAmount,
+          description: plan.description,
+        },
+      });
+      console.log(`  Updated plan: ${plan.name}`);
+    } else {
+      await prisma.plan.create({
+        data: plan,
+      });
+      console.log(`  Created plan: ${plan.name}`);
+    }
   }
 
   const adminEmail = process.env.ADMIN_EMAIL;
@@ -64,22 +80,32 @@ async function main() {
 
   console.log('Seeding admin user...');
 
-  await prisma.adminUser.upsert({
-    where: { email: adminEmail },
-    update: {
-      fullName: adminFullName,
-      password: hashPassword(adminPassword),
-      status: 'ACTIVE',
-    },
-    create: {
-      fullName: adminFullName,
-      email: adminEmail,
-      password: hashPassword(adminPassword),
-      status: 'ACTIVE',
-    },
+  const existingAdmin = await prisma.adminUser.findFirst({
+    where: { email: adminEmail, deletedAt: null },
   });
 
-  console.log(`  Upserted admin user: ${adminEmail}`);
+  if (existingAdmin) {
+    await prisma.adminUser.update({
+      where: { id: existingAdmin.id },
+      data: {
+        fullName: adminFullName,
+        password: hashPassword(adminPassword),
+        status: 'ACTIVE',
+      },
+    });
+    console.log(`  Updated admin user: ${adminEmail}`);
+  } else {
+    await prisma.adminUser.create({
+      data: {
+        fullName: adminFullName,
+        email: adminEmail,
+        password: hashPassword(adminPassword),
+        status: 'ACTIVE',
+      },
+    });
+    console.log(`  Created admin user: ${adminEmail}`);
+  }
+
   console.log('Seeding complete.');
 }
 
